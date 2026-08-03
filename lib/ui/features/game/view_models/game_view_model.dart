@@ -290,7 +290,12 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         isGameOver: isGameOver,
         lastClearedLines: clearedLines,
         lastMoveScore: moveScore,
+        isAnimating: true,
       );
+
+      Timer(const Duration(milliseconds: 150), () {
+        state = state.copyWith(isAnimating: false);
+      });
     }
 
     return true;

@@ -32,6 +32,8 @@ class _GameViewState extends ConsumerState<GameView> {
   int? _hoveredStartRow;
   int? _hoveredStartCol;
 
+  final ShakeController _shakeController = ShakeController();
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +47,12 @@ class _GameViewState extends ConsumerState<GameView> {
   }
 
   @override
+  void dispose() {
+    _shakeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(gameViewModelProvider);
 
@@ -55,90 +63,94 @@ class _GameViewState extends ConsumerState<GameView> {
         _onGameOver(next);
       } else if (next.lastClearedLines > 0 && next.lastClearedLines != (prev?.lastClearedLines ?? 0)) {
         HapticFeedback.heavyImpact();
+        _shakeController.shake();
       }
     });
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _circleButton(
-                        icon: Icons.arrow_back_ios_new_rounded,
-                        iconSize: 18,
-                        onTap: () => Navigator.pop(context),
-                      ),
-                      Text(
-                        state.isRandomMode
-                            ? 'RANDOM MODE'
-                            : 'LEVEL ${widget.levelNumber}',
-                        style: const TextStyle(
-                          fontFamily: 'BebasNeue',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.headingDark,
-                          letterSpacing: 1.0,
+      body: ShakeWidget(
+        controller: _shakeController,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _circleButton(
+                          icon: Icons.arrow_back_ios_new_rounded,
+                          iconSize: 18,
+                          onTap: () => Navigator.pop(context),
                         ),
-                      ),
-                       Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _circleButton(
-                            icon: Icons.refresh_rounded,
-                            iconSize: 20,
-                            onTap: () => ref
-                                .read(gameViewModelProvider.notifier)
-                                .resetLevel(),
+                        Text(
+                          state.isRandomMode
+                              ? 'RANDOM MODE'
+                              : 'LEVEL ${widget.levelNumber}',
+                          style: const TextStyle(
+                            fontFamily: 'BebasNeue',
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.headingDark,
+                            letterSpacing: 1.0,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                         Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _circleButton(
+                              icon: Icons.refresh_rounded,
+                              iconSize: 20,
+                              onTap: () => ref
+                                  .read(gameViewModelProvider.notifier)
+                                  .resetLevel(),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                Expanded(
-                  child: state.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : state.error != null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    state.error!,
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: state.isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : state.error != null
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      state.error!,
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: () => ref
-                                        .read(gameViewModelProvider.notifier)
-                                        .resetLevel(),
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _buildGame(state),
-                ),
-              ],
-            ),
-            FloatingScoreOverlay(
-              lastScore: state.lastMoveScore,
-              combo: state.comboCount,
-              clearedLines: state.lastClearedLines,
-            ),
-            ConfettiExplosion(trigger: state.isComplete),
-          ],
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () => ref
+                                          .read(gameViewModelProvider.notifier)
+                                          .resetLevel(),
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _buildGame(state),
+                  ),
+                ],
+              ),
+              FloatingScoreOverlay(
+                lastScore: state.lastMoveScore,
+                combo: state.comboCount,
+                clearedLines: state.lastClearedLines,
+              ),
+              ConfettiExplosion(trigger: state.isComplete),
+            ],
+          ),
         ),
       ),
     );
@@ -285,22 +297,45 @@ class _GameViewState extends ConsumerState<GameView> {
                               if (cellVal > 0) {
                                 final color = AppColors.blockColors[(cellVal - 1) % AppColors.blockColors.length];
                                 final isClearing = state.clearingRows.contains(r) || state.clearingCols.contains(c);
+                                final isJustPlaced = state.isAnimating && !isClearing;
+
                                 cellWidget = LayoutBuilder(
                                   builder: (context, box) {
                                     final block = _buildGlossyBlock(color, box.maxWidth, box.maxHeight);
                                     if (isClearing) {
                                       return TweenAnimationBuilder<double>(
-                                        tween: Tween<double>(begin: 1.0, end: 0.0),
-                                        duration: const Duration(milliseconds: 350),
-                                        curve: Curves.easeInBack,
+                                        tween: Tween<double>(begin: 0.0, end: 1.0),
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeOutBack,
+                                        builder: (context, value, child) {
+                                          return Transform.rotate(
+                                            angle: value * math.pi * 2,
+                                            child: Transform.scale(
+                                              scale: (1.0 - value).clamp(0.0, 1.0),
+                                              child: Opacity(
+                                                opacity: (1.0 - value).clamp(0.0, 1.0),
+                                                child: child,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: block,
+                                      );
+                                    } else if (isJustPlaced) {
+                                      return TweenAnimationBuilder<double>(
+                                        tween: Tween<double>(begin: 1.0, end: 1.15),
+                                        duration: const Duration(milliseconds: 75),
+                                        curve: Curves.easeInOut,
                                         builder: (context, value, child) {
                                           return Transform.scale(
                                             scale: value,
-                                            child: Opacity(
-                                              opacity: value.clamp(0.0, 1.0),
-                                              child: child,
-                                            ),
+                                            child: child,
                                           );
+                                        },
+                                        onEnd: () {
+                                          // Reverse the pulse
+                                          // Note: TweenAnimationBuilder is not ideal for bidirectional animations
+                                          // but it serves for this simple pop effect.
                                         },
                                         child: block,
                                       );
@@ -308,15 +343,31 @@ class _GameViewState extends ConsumerState<GameView> {
                                     return block;
                                   },
                                 );
-                              } else if (isPreviewCell && isValidPlacement) {
-                                cellWidget = LayoutBuilder(
+                              } else if (isPreviewCell) {
+                                final isInvalid = !isValidPlacement;
+                                return LayoutBuilder(
                                   builder: (context, box) {
-                                    return _buildGlossyBlock(
-                                      activeColor,
+                                    final block = _buildGlossyBlock(
+                                      isInvalid ? Colors.red : activeColor,
                                       box.maxWidth,
                                       box.maxHeight,
                                       isPreview: true,
                                     );
+                                    if (isInvalid) {
+                                      return TweenAnimationBuilder<double>(
+                                        tween: Tween<double>(begin: 0.2, end: 0.8),
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                        builder: (context, value, child) {
+                                          return Opacity(
+                                            opacity: value,
+                                            child: child,
+                                          );
+                                        },
+                                        child: block,
+                                      );
+                                    }
+                                    return block;
                                   },
                                 );
                               } else {
@@ -408,13 +459,8 @@ class _GameViewState extends ConsumerState<GameView> {
                           child: Draggable<int>(
                             data: pIdx,
                             dragAnchorStrategy: pointerDragAnchorStrategy,
-                            feedback: Material(
-                              color: Colors.transparent,
-                              child: Opacity(
-                                opacity: 0.85,
-                                child: _buildPiecePreview(piece, color, scale: blockSize),
-                              ),
-                            ),
+                            feedback: const SizedBox.shrink(),
+                            feedbackOffset: const Offset(0, -100),
                             childWhenDragging: Opacity(
                               opacity: 0.2,
                               child: _buildPiecePreview(piece, color, scale: blockSize),
@@ -887,13 +933,13 @@ class _FloatingScoreOverlayState extends State<FloatingScoreOverlay> with Single
       CurvedAnimation(parent: _controller, curve: const Interval(0.5, 1.0, curve: Curves.easeOut)),
     );
 
-    _translateY = Tween<double>(begin: 0.0, end: -60.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    _translateY = Tween<double>(begin: 0.0, end: -100.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
 
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.2), weight: 30),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.2, end: 1.0), weight: 70),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.5, end: 1.4), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.4, end: 1.0), weight: 70),
     ]).animate(_controller);
 
     if (widget.lastScore > 0) {
@@ -1137,5 +1183,66 @@ class ChiseledBlockPainter extends CustomPainter {
   bool shouldRepaint(covariant ChiseledBlockPainter oldDelegate) {
     return oldDelegate.color != color ||
         oldDelegate.isPreview != isPreview;
+  }
+}
+
+class ShakeController {
+  AnimationController? _controller;
+
+  void setController(AnimationController controller) {
+    _controller = controller;
+  }
+
+  void shake() {
+    _controller?.forward(from: 0.0);
+  }
+
+  void dispose() {
+    _controller?.dispose();
+  }
+}
+
+class ShakeWidget extends StatefulWidget {
+  final ShakeController controller;
+  final Widget child;
+
+  const ShakeWidget({super.key, required this.controller, required this.child});
+
+  @override
+  State<ShakeWidget> createState() => _ShakeWidgetState();
+}
+
+class _ShakeWidgetState extends State<ShakeWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    widget.controller.setController(_animationController);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final shake = math.sin(_animation.value * math.pi * 4) * 8.0 * (1 - _animation.value);
+        return Transform.translate(
+          offset: Offset(shake, 0),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
   }
 }
