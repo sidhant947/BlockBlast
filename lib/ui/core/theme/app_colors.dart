@@ -23,14 +23,13 @@ class AppColors {
 }
 
 class AppTheme {
-  static ThemeData get dark => ThemeData.dark().copyWith(
+  static ThemeData get dark => ThemeData(
+        brightness: Brightness.dark,
+        fontFamily: 'Fredoka',
         scaffoldBackgroundColor: AppColors.bg,
         colorScheme: const ColorScheme.dark(
           primary: AppColors.primary,
           surface: AppColors.surface,
         ),
-        textTheme: ThemeData.dark().textTheme.apply(
-              fontFamily: 'BebasNeue',
-            ),
       );
 }

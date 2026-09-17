@@ -14,6 +14,8 @@ class GameViewModelState {
   final int score;
   final int comboCount;
   final int totalClears;
+  final int remainingFrozen;
+  final int remainingGems;
   final bool isComplete;
   final bool isGameOver;
   final bool isLoading;
@@ -36,6 +38,8 @@ class GameViewModelState {
     this.score = 0,
     this.comboCount = 0,
     this.totalClears = 0,
+    this.remainingFrozen = 0,
+    this.remainingGems = 0,
     this.isComplete = false,
     this.isGameOver = false,
     this.isLoading = false,
@@ -57,6 +61,8 @@ class GameViewModelState {
     int? score,
     int? comboCount,
     int? totalClears,
+    int? remainingFrozen,
+    int? remainingGems,
     bool? isComplete,
     bool? isGameOver,
     bool? isLoading,
@@ -77,6 +83,8 @@ class GameViewModelState {
       score: score ?? this.score,
       comboCount: comboCount ?? this.comboCount,
       totalClears: totalClears ?? this.totalClears,
+      remainingFrozen: remainingFrozen ?? this.remainingFrozen,
+      remainingGems: remainingGems ?? this.remainingGems,
       isComplete: isComplete ?? this.isComplete,
       isGameOver: isGameOver ?? this.isGameOver,
       isLoading: isLoading ?? this.isLoading,
@@ -128,7 +136,16 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       (r) => List<int>.from(level.initialGrid[r]),
     );
 
-    final pieces = _generate3Pieces();
+    int frozen = 0;
+    int gems = 0;
+    for (int r = 0; r < level.gridSize; r++) {
+      for (int c = 0; c < level.gridSize; c++) {
+        if (board[r][c] == 9) frozen++;
+        if (board[r][c] == 10) gems++;
+      }
+    }
+
+    final pieces = _generateSolvable3Pieces(board);
     final colors = _generate3Colors();
 
     state = GameViewModelState(
@@ -139,6 +156,8 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       score: 0,
       comboCount: 0,
       totalClears: 0,
+      remainingFrozen: frozen,
+      remainingGems: gems,
       isComplete: false,
       isGameOver: false,
       isLoading: false,
@@ -147,11 +166,17 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     );
   }
 
-  List<BlockShape> _generate3Pieces() {
+  List<BlockShape> _generateSolvable3Pieces(List<List<int>> currentBoard) {
     final random = Random();
-    return List.generate(3, (_) {
-      return BlockShape.allShapes[random.nextInt(BlockShape.allShapes.length)];
-    });
+    for (int attempt = 0; attempt < 30; attempt++) {
+      final pieces = List.generate(3, (_) {
+        return BlockShape.allShapes[random.nextInt(BlockShape.allShapes.length)];
+      });
+      if (BlockBlastRules.canAnyPieceBePlaced(currentBoard, pieces)) {
+        return pieces;
+      }
+    }
+    return [BlockShape.single, BlockShape.line2H, BlockShape.line2V];
   }
 
   List<int> _generate3Colors() {
@@ -204,27 +229,9 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
     final newPieces = List<BlockShape?>.from(state.availablePieces);
     newPieces[pieceIndex] = null;
-
     final newPieceColors = List<int>.from(state.pieceColors);
 
-    if (newPieces.every((p) => p == null)) {
-      final freshPieces = _generate3Pieces();
-      final freshColors = _generate3Colors();
-      for (int i = 0; i < 3; i++) {
-        newPieces[i] = freshPieces[i];
-        newPieceColors[i] = freshColors[i];
-      }
-    }
-
     final newTotalClears = state.totalClears + clearedLines;
-
-    bool isComplete = false;
-    final level = state.level;
-    if (level != null && !state.isRandomMode) {
-      if (newScore >= level.targetScore || newTotalClears >= level.targetClears) {
-        isComplete = true;
-      }
-    }
 
     if (clearedLines > 0) {
       state = state.copyWith(
@@ -248,14 +255,55 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
           newBoard.length,
           (r) => List<int>.from(newBoard[r]),
         );
+
+        int extraGemBonus = 0;
+
         for (final r in completedRows) {
           for (int c = 0; c < clearedBoard.length; c++) {
-            clearedBoard[r][c] = 0;
+            if (clearedBoard[r][c] == 9) {
+              clearedBoard[r][c] = 1;
+            } else {
+              if (clearedBoard[r][c] == 10) extraGemBonus += 200;
+              clearedBoard[r][c] = 0;
+            }
           }
         }
         for (final c in completedCols) {
           for (int r = 0; r < clearedBoard.length; r++) {
-            clearedBoard[r][c] = 0;
+            if (clearedBoard[r][c] == 9) {
+              clearedBoard[r][c] = 1;
+            } else {
+              if (clearedBoard[r][c] == 10) extraGemBonus += 200;
+              clearedBoard[r][c] = 0;
+            }
+          }
+        }
+
+        int remFrozen = 0;
+        int remGems = 0;
+        for (int r = 0; r < clearedBoard.length; r++) {
+          for (int c = 0; c < clearedBoard.length; c++) {
+            if (clearedBoard[r][c] == 9) remFrozen++;
+            if (clearedBoard[r][c] == 10) remGems++;
+          }
+        }
+
+        if (newPieces.every((p) => p == null)) {
+          final freshPieces = _generateSolvable3Pieces(clearedBoard);
+          final freshColors = _generate3Colors();
+          for (int i = 0; i < 3; i++) {
+            newPieces[i] = freshPieces[i];
+            newPieceColors[i] = freshColors[i];
+          }
+        }
+
+        final finalScore = newScore + extraGemBonus;
+        bool isComplete = false;
+        final level = state.level;
+        if (level != null && !state.isRandomMode) {
+          final targetsCleared = (remFrozen == 0 && remGems == 0);
+          if (targetsCleared && finalScore >= level.targetScore) {
+            isComplete = true;
           }
         }
 
@@ -266,6 +314,11 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
         state = state.copyWith(
           board: clearedBoard,
+          availablePieces: newPieces,
+          pieceColors: newPieceColors,
+          score: finalScore,
+          remainingFrozen: remFrozen,
+          remainingGems: remGems,
           isComplete: isComplete,
           isGameOver: isGameOver,
           clearingRows: const {},
@@ -274,6 +327,23 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         );
       });
     } else {
+      if (newPieces.every((p) => p == null)) {
+        final freshPieces = _generateSolvable3Pieces(newBoard);
+        final freshColors = _generate3Colors();
+        for (int i = 0; i < 3; i++) {
+          newPieces[i] = freshPieces[i];
+          newPieceColors[i] = freshColors[i];
+        }
+      }
+
+      bool isComplete = false;
+      final level = state.level;
+      if (level != null && !state.isRandomMode) {
+        if (state.remainingFrozen == 0 && state.remainingGems == 0 && newScore >= level.targetScore) {
+          isComplete = true;
+        }
+      }
+
       bool isGameOver = false;
       if (!isComplete && !BlockBlastRules.canAnyPieceBePlaced(newBoard, newPieces)) {
         isGameOver = true;

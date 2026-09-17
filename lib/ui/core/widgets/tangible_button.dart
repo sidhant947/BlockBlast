@@ -66,14 +66,19 @@ class _TangibleButtonState extends State<TangibleButton> {
             ),
           ),
           alignment: Alignment.center,
-          child: Text(
-            widget.text.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'BebasNeue',
-              color: textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.5,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                widget.text.toUpperCase(),
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
             ),
           ),
         ),

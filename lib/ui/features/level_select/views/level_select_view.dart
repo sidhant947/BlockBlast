@@ -12,6 +12,7 @@ class LevelSelectView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final homeState = ref.watch(homeViewModelProvider);
     final unlocked = homeState.progress?.unlockedLevels ?? 1;
+    final totalDisplayCount = unlocked + 10;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -42,14 +43,16 @@ class LevelSelectView extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const Text(
-                    'LEVELS',
-                    style: TextStyle(
-                      fontFamily: 'BebasNeue',
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.headingDark,
-                      letterSpacing: 1.0,
+                  const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'LEVELS',
+                      style: TextStyle(
+                        color: AppColors.headingDark,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 42),
@@ -63,7 +66,7 @@ class LevelSelectView extends ConsumerWidget {
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
-                  itemCount: 60,
+                  itemCount: totalDisplayCount,
                   itemBuilder: (context, index) {
                     final levelNum = index + 1;
                     final isCompleted = levelNum < unlocked;
@@ -101,17 +104,19 @@ class LevelSelectView extends ConsumerWidget {
                         ),
                         alignment: Alignment.center,
                         child: isUnlocked
-                            ? Text(
-                                '$levelNum',
-                                style: TextStyle(
-                                  fontFamily: 'BebasNeue',
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: isCompleted
-                                      ? const Color(0xFF81C784)
-                                      : (isCurrent
-                                          ? const Color(0xFFFFB74D)
-                                          : AppColors.headingDark),
+                            ? FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '$levelNum',
+                                  style: TextStyle(
+                                    color: isCompleted
+                                        ? const Color(0xFF81C784)
+                                        : (isCurrent
+                                            ? const Color(0xFFFFB74D)
+                                            : AppColors.headingDark),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               )
                             : const Icon(

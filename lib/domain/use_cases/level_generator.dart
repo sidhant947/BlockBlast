@@ -21,7 +21,12 @@ class LevelGenerator {
 
   GameLevel _generateInternal(int levelNumber) {
     final random = Random(levelNumber * 7919);
-    final gridSize = 8;
+    int gridSize = 8;
+    if (levelNumber == 1 || levelNumber == 2) {
+      gridSize = 6;
+    } else if (levelNumber > 10) {
+      gridSize = (levelNumber % 3 == 0) ? 10 : ((levelNumber % 3 == 1) ? 6 : 8);
+    }
     return _generateLevelWithSeed(levelNumber, gridSize, random);
   }
 
@@ -51,93 +56,65 @@ class LevelGenerator {
 
   GameLevel _generateLevelWithSeed(int levelNumber, int gridSize, Random random) {
     final initialGrid = List.generate(gridSize, (_) => List<int>.filled(gridSize, 0));
-    int targetScore = 500;
-    int targetClears = 3;
+    int targetScore = 1200;
+    int targetClears = 5;
 
     if (levelNumber == 1) {
-      targetScore = 400;
-      targetClears = 3;
-    } else if (levelNumber == 2) {
       targetScore = 600;
       targetClears = 4;
-      initialGrid[0][0] = 1 + random.nextInt(8);
-      initialGrid[0][gridSize - 1] = 1 + random.nextInt(8);
-      initialGrid[gridSize - 1][0] = 1 + random.nextInt(8);
-      initialGrid[gridSize - 1][gridSize - 1] = 1 + random.nextInt(8);
-    } else if (levelNumber == 3) {
-      targetScore = 850;
+      initialGrid[1][1] = 9;
+      initialGrid[1][4] = 9;
+      initialGrid[4][1] = 10;
+      initialGrid[4][4] = 10;
+    } else if (levelNumber == 2) {
+      targetScore = 900;
       targetClears = 5;
-      for (int i = 2; i < 6; i++) {
-        initialGrid[i][i] = 1 + random.nextInt(8);
+      initialGrid[0][0] = 9;
+      initialGrid[0][gridSize - 1] = 9;
+      initialGrid[gridSize - 1][0] = 9;
+      initialGrid[gridSize - 1][gridSize - 1] = 9;
+      initialGrid[2][2] = 10;
+      initialGrid[3][3] = 10;
+    } else if (levelNumber == 3) {
+      targetScore = 1300;
+      targetClears = 6;
+      for (int i = 1; i < gridSize - 1; i++) {
+        initialGrid[i][i] = (i % 2 == 0) ? 9 : 10;
       }
     } else if (levelNumber == 4) {
-      targetScore = 1100;
-      targetClears = 6;
-      initialGrid[3][3] = 1 + random.nextInt(8);
-      initialGrid[3][4] = 1 + random.nextInt(8);
-      initialGrid[4][3] = 1 + random.nextInt(8);
-      initialGrid[4][4] = 1 + random.nextInt(8);
-    } else if (levelNumber == 5) {
-      targetScore = 1400;
+      targetScore = 1700;
       targetClears = 7;
-      for (int i = 2; i <= 5; i++) {
-        initialGrid[2][i] = 1 + random.nextInt(8);
-        initialGrid[5][i] = 1 + random.nextInt(8);
-        initialGrid[i][2] = 1 + random.nextInt(8);
-        initialGrid[i][5] = 1 + random.nextInt(8);
-      }
-    } else if (levelNumber == 6) {
-      targetScore = 1750;
+      final mid = gridSize ~/ 2;
+      initialGrid[mid - 1][mid - 1] = 9;
+      initialGrid[mid - 1][mid] = 10;
+      initialGrid[mid][mid - 1] = 10;
+      initialGrid[mid][mid] = 9;
+    } else if (levelNumber == 5) {
+      targetScore = 2200;
       targetClears = 8;
-      for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-          initialGrid[i][j] = 1 + random.nextInt(8);
-          initialGrid[gridSize - 1 - i][j] = 1 + random.nextInt(8);
-          initialGrid[i][gridSize - 1 - j] = 1 + random.nextInt(8);
-          initialGrid[gridSize - 1 - i][gridSize - 1 - j] = 1 + random.nextInt(8);
+      for (int i = 1; i < gridSize - 1; i++) {
+        initialGrid[1][i] = (i % 2 == 0) ? 9 : 10;
+        initialGrid[gridSize - 2][i] = (i % 2 == 0) ? 10 : 9;
+      }
+    } else if (levelNumber > 5 && levelNumber <= 10) {
+      targetScore = 2200 + ((levelNumber - 5) * 450);
+      targetClears = 8 + (levelNumber - 5);
+      final reflections = min(4, 2 + (levelNumber ~/ 3));
+      int placed = 0;
+      while (placed < reflections) {
+        final r = random.nextInt(gridSize ~/ 2);
+        final c = random.nextInt(gridSize ~/ 2);
+        if (initialGrid[r][c] == 0) {
+          final blockVal = (placed % 2 == 0) ? 9 : 10;
+          initialGrid[r][c] = blockVal;
+          initialGrid[gridSize - 1 - r][c] = blockVal;
+          initialGrid[r][gridSize - 1 - c] = blockVal;
+          initialGrid[gridSize - 1 - r][gridSize - 1 - c] = blockVal;
+          placed++;
         }
-      }
-    } else if (levelNumber == 7) {
-      targetScore = 2100;
-      targetClears = 9;
-      for (int r = 2; r < 6; r++) {
-        for (int c = 2; c < 6; c++) {
-          if ((r + c) % 2 == 0) {
-            initialGrid[r][c] = 1 + random.nextInt(8);
-          }
-        }
-      }
-    } else if (levelNumber == 8) {
-      targetScore = 2500;
-      targetClears = 10;
-      for (int i = 1; i < 7; i++) {
-        initialGrid[i][1] = 1 + random.nextInt(8);
-        initialGrid[i][6] = 1 + random.nextInt(8);
-      }
-      initialGrid[3][2] = 1 + random.nextInt(8);
-      initialGrid[3][3] = 1 + random.nextInt(8);
-      initialGrid[3][4] = 1 + random.nextInt(8);
-      initialGrid[3][5] = 1 + random.nextInt(8);
-    } else if (levelNumber == 9) {
-      targetScore = 3000;
-      targetClears = 11;
-      for (int i = 0; i < gridSize; i++) {
-        if (i != 3 && i != 4) {
-          initialGrid[0][i] = 1 + random.nextInt(8);
-          initialGrid[gridSize - 1][i] = 1 + random.nextInt(8);
-        }
-      }
-    } else if (levelNumber == 10) {
-      targetScore = 3500;
-      targetClears = 12;
-      for (int i = 1; i < 7; i++) {
-        initialGrid[1][i] = 1 + random.nextInt(8);
-        initialGrid[6][i] = 1 + random.nextInt(8);
-        initialGrid[i][1] = 1 + random.nextInt(8);
-        initialGrid[i][6] = 1 + random.nextInt(8);
       }
     } else if (levelNumber > 10) {
-      targetScore = 3500 + ((levelNumber - 10) * 400);
+      targetScore = 3800 + ((levelNumber - 10) * 500);
       targetClears = 12 + ((levelNumber - 10) ~/ 2);
       final reflections = min(6, 2 + (levelNumber ~/ 4));
       int placed = 0;
@@ -145,17 +122,23 @@ class LevelGenerator {
         final r = random.nextInt(gridSize ~/ 2);
         final c = random.nextInt(gridSize ~/ 2);
         if (initialGrid[r][c] == 0) {
-          final colorIdx = 1 + random.nextInt(8);
-          initialGrid[r][c] = colorIdx;
-          initialGrid[gridSize - 1 - r][c] = colorIdx;
-          initialGrid[r][gridSize - 1 - c] = colorIdx;
-          initialGrid[gridSize - 1 - r][gridSize - 1 - c] = colorIdx;
+          final blockVal = (placed % 2 == 0) ? 9 : 10;
+          initialGrid[r][c] = blockVal;
+          initialGrid[gridSize - 1 - r][c] = blockVal;
+          initialGrid[r][gridSize - 1 - c] = blockVal;
+          initialGrid[gridSize - 1 - r][gridSize - 1 - c] = blockVal;
           placed++;
         }
       }
-    } else {
-      targetScore = 500;
-      targetClears = 3;
+    }
+
+    int frozenCount = 0;
+    int gemCount = 0;
+    for (int r = 0; r < gridSize; r++) {
+      for (int c = 0; c < gridSize; c++) {
+        if (initialGrid[r][c] == 9) frozenCount++;
+        if (initialGrid[r][c] == 10) gemCount++;
+      }
     }
 
     return GameLevel(
@@ -163,6 +146,8 @@ class LevelGenerator {
       gridSize: gridSize,
       targetScore: targetScore,
       targetClears: targetClears,
+      targetFrozen: frozenCount,
+      targetGems: gemCount,
       initialGrid: initialGrid,
     );
   }

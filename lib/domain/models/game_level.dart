@@ -124,6 +124,8 @@ class GameLevel {
     required this.gridSize,
     required this.targetScore,
     required this.targetClears,
+    required this.targetFrozen,
+    required this.targetGems,
     required this.initialGrid,
   });
 
@@ -131,5 +133,7 @@ class GameLevel {
   final int gridSize;
   final int targetScore;
   final int targetClears;
+  final int targetFrozen;
+  final int targetGems;
   final List<List<int>> initialGrid;
 }
