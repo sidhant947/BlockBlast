@@ -119,11 +119,11 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     }
   }
 
-  void loadRandomLevel(String difficulty) {
+  void loadRandomLevel(String difficulty, {int gridSize = 8}) {
     state = state.copyWith(isLoading: true);
     try {
       final seed = DateTime.now().millisecondsSinceEpoch;
-      final level = levelGenerator.generateRandom(gridSize: 8, seed: seed);
+      final level = levelGenerator.generateRandom(gridSize: gridSize, seed: seed);
       _setupLevel(level, isRandom: true, difficulty: difficulty);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Failed to generate level: $e');

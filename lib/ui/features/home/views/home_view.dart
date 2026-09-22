@@ -20,7 +20,9 @@ class _HomeViewState extends ConsumerState<HomeView> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(homeViewModelProvider.notifier).loadProgress());
+    Future.microtask(
+      () => ref.read(homeViewModelProvider.notifier).loadProgress(),
+    );
   }
 
   Future<void> _launchUrl(String urlString) async {
@@ -46,15 +48,66 @@ class _HomeViewState extends ConsumerState<HomeView> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white24,
-            width: 1.0,
-          ),
+          border: Border.all(color: Colors.white24, width: 1.0),
         ),
         child: Icon(
           icon,
           size: iconSize,
           color: iconColor ?? AppColors.headingDark,
+        ),
+      ),
+    );
+  }
+
+  void _showGridSizeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.bg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white24, width: 1.0),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              const Text(
+                'Choose a grid size',
+                style: TextStyle(
+                  color: AppColors.subtext,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+              for (final size in [6, 8, 10]) ...[
+                TangibleButton(
+                  text: '$size x $size',
+                  isSecondary: size != 8,
+                  height: 48,
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GameView(
+                          levelNumber: 0,
+                          isRandom: true,
+                          randomDifficulty: 'Endless',
+                          gridSize: size,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                if (size != 10) const SizedBox(height: 12),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -75,7 +128,10 @@ class _HomeViewState extends ConsumerState<HomeView> {
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
                     child: Column(
                       children: [
                         Row(
@@ -84,12 +140,16 @@ class _HomeViewState extends ConsumerState<HomeView> {
                             _circleButton(
                               icon: Icons.star_rounded,
                               iconColor: const Color(0xFFFFCC00),
-                              onTap: () => _launchUrl('https://github.com/sidhant947/BlockBlast'),
+                              onTap: () => _launchUrl(
+                                'https://github.com/sidhant947/BlockBlast',
+                              ),
                             ),
                             if (state.progress != null)
                               Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(30),
@@ -156,7 +216,9 @@ class _HomeViewState extends ConsumerState<HomeView> {
                         const Spacer(flex: 4),
 
                         TangibleButton(
-                          text: state.progress == null || state.progress!.currentLevel <= 1
+                          text:
+                              state.progress == null ||
+                                  state.progress!.currentLevel <= 1
                               ? 'Start Game'
                               : 'Play',
                           onPressed: state.isLoading
@@ -166,11 +228,14 @@ class _HomeViewState extends ConsumerState<HomeView> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => GameView(
-                                        levelNumber: state.progress?.currentLevel ?? 1,
+                                        levelNumber:
+                                            state.progress?.currentLevel ?? 1,
                                       ),
                                     ),
                                   );
-                                  ref.read(homeViewModelProvider.notifier).loadProgress();
+                                  ref
+                                      .read(homeViewModelProvider.notifier)
+                                      .loadProgress();
                                 },
                         ),
 
@@ -186,7 +251,9 @@ class _HomeViewState extends ConsumerState<HomeView> {
                                 builder: (context) => const LevelSelectView(),
                               ),
                             );
-                            ref.read(homeViewModelProvider.notifier).loadProgress();
+                            ref
+                                .read(homeViewModelProvider.notifier)
+                                .loadProgress();
                           },
                         ),
 
@@ -195,18 +262,7 @@ class _HomeViewState extends ConsumerState<HomeView> {
                         TangibleButton(
                           text: 'Endless Mode',
                           isSecondary: true,
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const GameView(
-                                  levelNumber: 0,
-                                  isRandom: true,
-                                  randomDifficulty: 'Endless',
-                                ),
-                              ),
-                            );
-                          },
+                          onPressed: () => _showGridSizeDialog(context),
                         ),
                         const Spacer(),
                       ],

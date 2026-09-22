@@ -16,11 +16,13 @@ class GameView extends ConsumerStatefulWidget {
     required this.levelNumber,
     this.isRandom = false,
     this.randomDifficulty = 'Easy',
+    this.gridSize = 8,
   });
 
   final int levelNumber;
   final bool isRandom;
   final String randomDifficulty;
+  final int gridSize;
 
   @override
   ConsumerState<GameView> createState() => _GameViewState();
@@ -99,7 +101,7 @@ class _GameViewState extends ConsumerState<GameView>
       if (widget.isRandom) {
         ref
             .read(gameViewModelProvider.notifier)
-            .loadRandomLevel(widget.randomDifficulty);
+            .loadRandomLevel(widget.randomDifficulty, gridSize: widget.gridSize);
       } else {
         ref.read(gameViewModelProvider.notifier).loadLevel(widget.levelNumber);
       }
