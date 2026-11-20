@@ -359,6 +359,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
           remainingGems: remGems,
           isComplete: isComplete,
           isGameOver: isGameOver,
+          lastClearedLines: 0,
           clearingRows: const {},
           clearingCols: const {},
           isAnimating: false,

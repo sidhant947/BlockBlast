@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'package:flame_audio/flame_audio.dart';
-import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:blockblast/domain/models/game_level.dart';
@@ -88,12 +88,31 @@ class _GameViewState extends ConsumerState<GameView>
     }
   }
 
+  final Set<AudioPlayer> _activePlayers = {};
+
+  void _playSound(String file) {
+    if (!mounted || !ref.read(soundSettingsProvider)) return;
+    try {
+      final player = AudioPlayer();
+      _activePlayers.add(player);
+      final assetPath = file.startsWith('audio/') ? file : 'audio/$file';
+      player.play(AssetSource(assetPath)).catchError((_) {});
+      player.onPlayerComplete.first.timeout(
+        const Duration(seconds: 1),
+        onTimeout: () {},
+      ).whenComplete(() {
+        if (_activePlayers.remove(player)) {
+          player.dispose();
+        }
+      });
+    } catch (_) {}
+  }
+
   late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-    FlameAudio.audioCache.loadAll(['place.mp3', 'clear.mp3']);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -112,6 +131,11 @@ class _GameViewState extends ConsumerState<GameView>
 
   @override
   void dispose() {
+    final players = _activePlayers.toList();
+    _activePlayers.clear();
+    for (final player in players) {
+      player.dispose();
+    }
     _pulseController.dispose();
     _shakeController.dispose();
     super.dispose();
@@ -129,9 +153,6 @@ class _GameViewState extends ConsumerState<GameView>
       } else if (next.lastClearedLines > 0 &&
           (next.lastClearedLines != (prev?.lastClearedLines ?? 0) ||
               next.totalClears != (prev?.totalClears ?? 0))) {
-        if (ref.read(soundSettingsProvider)) {
-          FlameAudio.play('clear.mp3');
-        }
         HapticFeedback.heavyImpact();
         _shakeController.shake();
         _shatterKey.currentState?.triggerShatter(
@@ -241,6 +262,7 @@ class _GameViewState extends ConsumerState<GameView>
   Widget _buildGame(GameViewModelState state) {
     final level = state.level;
     if (level == null) return const SizedBox.shrink();
+    final isCompactLayout = ref.watch(compactLayoutSettingsProvider);
 
     final activePieceIndex = _hoveredPieceIndex ?? _selectedPieceIndex;
     final activePiece = activePieceIndex != null
@@ -298,66 +320,9 @@ class _GameViewState extends ConsumerState<GameView>
       }
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _animatedStat(
-                      'SCORE',
-                      state.score,
-                      Icons.stars_rounded,
-                      iconColor: const Color(0xFFFFCC00),
-                    ),
-                  ),
-                  if (state.isRandomMode)
-                    Expanded(
-                      child: _animatedStat(
-                        'HIGHEST',
-                        state.highestScore,
-                        Icons.emoji_events_rounded,
-                        iconColor: const Color(0xFFFFB703),
-                      ),
-                    ),
-                  if (!state.isRandomMode) ...[
-                    Expanded(
-                      child: _targetStat(
-                        'TARGET',
-                        level.targetScore,
-                        isReached: state.score >= level.targetScore,
-                      ),
-                    ),
-                    if (level.targetFrozen > 0 || level.targetGems > 0)
-                      Expanded(
-                        child: _objectiveStat(
-                          'GOALS',
-                          targetFrozen: level.targetFrozen,
-                          targetGems: level.targetGems,
-                          remainingFrozen: state.remainingFrozen,
-                          remainingGems: state.remainingGems,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: 1.0,
-                    child: Stack(
-                      children: [
-                        Container(
+    final boardStack = Stack(
+      children: [
+        Container(
                           key: _boardKey,
                           decoration: BoxDecoration(
                             color: AppColors.surface,
@@ -579,8 +544,18 @@ class _GameViewState extends ConsumerState<GameView>
                                             c,
                                           );
                                       if (placed) {
-                                        if (ref.read(soundSettingsProvider)) {
-                                          FlameAudio.play('place.mp3');
+                                        final hasCleared = ref
+                                                .read(gameViewModelProvider)
+                                                .clearingRows
+                                                .isNotEmpty ||
+                                            ref
+                                                .read(gameViewModelProvider)
+                                                .clearingCols
+                                                .isNotEmpty;
+                                        if (hasCleared) {
+                                          _playSound('clear.mp3');
+                                        } else {
+                                          _playSound('place.mp3');
                                         }
                                         setState(() {
                                           _selectedPieceIndex = null;
@@ -596,31 +571,86 @@ class _GameViewState extends ConsumerState<GameView>
                             },
                           ),
                         ),
-                        ShatterParticleOverlay(
-                          key: _shatterKey,
-                          gridSize: level.gridSize,
-                        ),
-                      ],
+        ShatterParticleOverlay(
+          key: _shatterKey,
+          gridSize: level.gridSize,
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double pieceContainerHeight = math.min(
+          constraints.maxHeight * 0.25,
+          140.0,
+        );
+        final double maxBoardHeight = math.max(
+          0.0,
+          constraints.maxHeight - pieceContainerHeight - 90.0,
+        );
+        final double boardSize = math.min(
+          constraints.maxWidth - 32.0,
+          maxBoardHeight,
+        );
+
+        final boardWidget = isCompactLayout
+            ? Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 8.0),
+                child: Center(
+                  child: SizedBox(
+                    width: boardSize,
+                    height: boardSize,
+                    child: boardStack,
+                  ),
+                ),
+              )
+            : Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1.0,
+                      child: boardStack,
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
 
-            Container(
-              height: math.min(constraints.maxHeight * 0.25, 140.0),
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
+        final piecesContainer = Container(
+          height: pieceContainerHeight,
+          margin: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: isCompactLayout ? 0 : 12,
+          ),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(3, (pIdx) {
                   final piece = state.availablePieces[pIdx];
                   if (piece == null) {
-                    return const Expanded(child: SizedBox.shrink());
+                    return Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.02),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                            width: 1.0,
+                          ),
+                        ),
+                      ),
+                    );
                   }
 
                   final colorIdx = state.pieceColors[pIdx];
@@ -651,9 +681,10 @@ class _GameViewState extends ConsumerState<GameView>
                               (bBox.size.width - 16.0) / level.gridSize;
                         }
 
-                        return Center(
+                        return SizedBox.expand(
                           child: Draggable<int>(
                             data: pIdx,
+                            hitTestBehavior: HitTestBehavior.opaque,
                             dragAnchorStrategy: (draggable, context, position) {
                               final double pieceW = piece.cols * boardBlockSize;
                               final double pieceH = piece.rows * boardBlockSize;
@@ -685,10 +716,20 @@ class _GameViewState extends ConsumerState<GameView>
                                       _hoveredStartCol!,
                                     );
                                 if (placed) {
-                                  if (ref.read(soundSettingsProvider)) {
-                                    FlameAudio.play('place.mp3');
+                                  final hasCleared = ref
+                                          .read(gameViewModelProvider)
+                                          .clearingRows
+                                          .isNotEmpty ||
+                                      ref
+                                          .read(gameViewModelProvider)
+                                          .clearingCols
+                                          .isNotEmpty;
+                                  if (hasCleared) {
+                                    _playSound('clear.mp3');
+                                  } else {
+                                    _playSound('place.mp3');
+                                    HapticFeedback.mediumImpact();
                                   }
-                                  HapticFeedback.mediumImpact();
                                 }
                               }
                               setState(() {
@@ -719,15 +760,32 @@ class _GameViewState extends ConsumerState<GameView>
                                 ),
                               ),
                             ),
-                            childWhenDragging: Opacity(
-                              opacity: 0.15,
-                              child: _buildPiecePreview(
-                                piece,
-                                color,
-                                scale: blockSize,
+                            childWhenDragging: Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.02),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.04),
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: Center(
+                                child: Opacity(
+                                  opacity: 0.15,
+                                  child: _buildPiecePreview(
+                                    piece,
+                                    color,
+                                    scale: blockSize,
+                                  ),
+                                ),
                               ),
                             ),
                             child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () {
                                 HapticFeedback.lightImpact();
                                 setState(() {
@@ -738,23 +796,37 @@ class _GameViewState extends ConsumerState<GameView>
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.all(6),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? Colors.white.withValues(alpha: 0.15)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: isSelected
-                                      ? Border.all(
-                                          color: AppColors.primary,
-                                          width: 2.0,
-                                        )
+                                      ? color.withValues(alpha: 0.15)
+                                      : Colors.white.withValues(alpha: 0.04),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? color
+                                        : Colors.white.withValues(alpha: 0.08),
+                                    width: isSelected ? 2.0 : 1.0,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: color.withValues(alpha: 0.3),
+                                            blurRadius: 10,
+                                            spreadRadius: 1,
+                                          ),
+                                        ]
                                       : null,
                                 ),
-                                child: _buildPiecePreview(
-                                  piece,
-                                  color,
-                                  scale: blockSize,
+                                child: Center(
+                                  child: _buildPiecePreview(
+                                    piece,
+                                    color,
+                                    scale: blockSize,
+                                  ),
                                 ),
                               ),
                             ),
@@ -765,7 +837,68 @@ class _GameViewState extends ConsumerState<GameView>
                   );
                 }),
               ),
+            );
+
+        final bottomPiecesWidget = isCompactLayout
+            ? Expanded(
+                child: Center(
+                  child: piecesContainer,
+                ),
+              )
+            : piecesContainer;
+
+        return Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                4,
+                16,
+                isCompactLayout ? 4 : 12,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _animatedStat(
+                      'SCORE',
+                      state.score,
+                      Icons.stars_rounded,
+                      iconColor: const Color(0xFFFFCC00),
+                    ),
+                  ),
+                  if (state.isRandomMode)
+                    Expanded(
+                      child: _animatedStat(
+                        'HIGHEST',
+                        state.highestScore,
+                        Icons.emoji_events_rounded,
+                        iconColor: const Color(0xFFFFB703),
+                      ),
+                    ),
+                  if (!state.isRandomMode) ...[
+                    Expanded(
+                      child: _targetStat(
+                        'TARGET',
+                        level.targetScore,
+                        isReached: state.score >= level.targetScore,
+                      ),
+                    ),
+                    if (level.targetFrozen > 0 || level.targetGems > 0)
+                      Expanded(
+                        child: _objectiveStat(
+                          'GOALS',
+                          targetFrozen: level.targetFrozen,
+                          targetGems: level.targetGems,
+                          remainingFrozen: state.remainingFrozen,
+                          remainingGems: state.remainingGems,
+                        ),
+                      ),
+                  ],
+                ],
+              ),
             ),
+            boardWidget,
+            bottomPiecesWidget,
           ],
         );
       },

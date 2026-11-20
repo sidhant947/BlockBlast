@@ -70,3 +70,43 @@ final soundSettingsProvider =
   return SoundSettingsNotifier(hiveService);
 });
 
+class CompactLayoutSettingsNotifier extends StateNotifier<bool> {
+  CompactLayoutSettingsNotifier(this._hiveService)
+      : super(_loadInitial(_hiveService));
+
+  final HiveService _hiveService;
+
+  static bool _loadInitial(HiveService hiveService) {
+    try {
+      if (Hive.isBoxOpen(HiveService.progressBoxName)) {
+        return hiveService.progressBox.get(
+              'compactLayoutEnabled',
+              defaultValue: false,
+            )
+            as bool;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<void> toggle() async {
+    await setLayoutEnabled(!state);
+  }
+
+  Future<void> setLayoutEnabled(bool value) async {
+    state = value;
+    try {
+      if (Hive.isBoxOpen(HiveService.progressBoxName)) {
+        await _hiveService.progressBox.put('compactLayoutEnabled', value);
+      }
+    } catch (_) {}
+  }
+}
+
+final compactLayoutSettingsProvider =
+    StateNotifierProvider<CompactLayoutSettingsNotifier, bool>((ref) {
+  final hiveService = ref.watch(hiveServiceProvider);
+  return CompactLayoutSettingsNotifier(hiveService);
+});
+
+
