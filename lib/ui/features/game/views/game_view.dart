@@ -839,13 +839,19 @@ class _GameViewState extends ConsumerState<GameView>
               ),
             );
 
+        final bottomContent = state.isComplete
+            ? _buildCompletionContent(state)
+            : state.isGameOver
+                ? _buildGameOverContent(state)
+                : piecesContainer;
+
         final bottomPiecesWidget = isCompactLayout
             ? Expanded(
                 child: Center(
-                  child: piecesContainer,
+                  child: bottomContent,
                 ),
               )
-            : piecesContainer;
+            : bottomContent;
 
         return Column(
           children: [
@@ -1237,88 +1243,71 @@ class _GameViewState extends ConsumerState<GameView>
   }
 
   Future<void> _onLevelComplete(GameViewModelState state) async {
+    if (mounted) {
+      setState(() {
+        _selectedPieceIndex = null;
+        _hoveredPieceIndex = null;
+        _hoveredStartRow = null;
+        _hoveredStartCol = null;
+      });
+    }
     await ref.read(gameViewModelProvider.notifier).completeLevel();
-    if (!mounted) return;
-    _showCompleteDialog(state);
   }
 
-  Future<void> _onGameOver(GameViewModelState state) async {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white24, width: 1.0),
-          ),
-          padding: const EdgeInsets.all(28),
+  void _onGameOver(GameViewModelState state) {
+    if (mounted) {
+      setState(() {
+        _selectedPieceIndex = null;
+        _hoveredPieceIndex = null;
+        _hoveredStartRow = null;
+        _hoveredStartCol = null;
+      });
+    }
+  }
+
+  Widget _buildGameOverContent(GameViewModelState state) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.sentiment_dissatisfied_rounded,
-                color: Color(0xFFEF4444),
-                size: 56,
-              ),
-              const SizedBox(height: 20),
-              const FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'NO MORE MOVES!',
-                  style: TextStyle(
-                    color: AppColors.headingDark,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
+              const Text(
+                'NO MORE MOVES!',
+                style: TextStyle(
+                  color: AppColors.headingDark,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(height: 8),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'Final Score: ${state.score}',
-                  style: const TextStyle(
-                    color: AppColors.subtext,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (state.isRandomMode) ...[
-                const SizedBox(height: 4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Highest Score: ${state.highestScore}',
-                    style: const TextStyle(
-                      color: AppColors.subtext,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+              const SizedBox(height: 14),
+              SizedBox(
+                width: 220,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TangibleButton(
+                      text: 'Try Again',
+                      height: 48,
+                      onPressed: () =>
+                          ref.read(gameViewModelProvider.notifier).resetLevel(),
                     ),
-                  ),
+                    if (state.canUndo) ...[
+                      const SizedBox(height: 10),
+                      TangibleButton(
+                        text: 'Undo Move',
+                        isSecondary: true,
+                        height: 48,
+                        onPressed: () => ref
+                            .read(gameViewModelProvider.notifier)
+                            .undoLastMove(),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-              const SizedBox(height: 24),
-              TangibleButton(
-                text: 'Try Again',
-                onPressed: () {
-                  Navigator.pop(context);
-                  ref.read(gameViewModelProvider.notifier).resetLevel();
-                },
-              ),
-              const SizedBox(height: 12),
-              TangibleButton(
-                text: 'Home',
-                isSecondary: true,
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
               ),
             ],
           ),
@@ -1327,49 +1316,40 @@ class _GameViewState extends ConsumerState<GameView>
     );
   }
 
-  void _showCompleteDialog(GameViewModelState state) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white24, width: 1.0),
-          ),
-          padding: const EdgeInsets.all(28),
+  Widget _buildCompletionContent(GameViewModelState state) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'LEVEL COMPLETE!',
-                  style: TextStyle(
-                    color: AppColors.headingDark,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
+              const Text(
+                'LEVEL COMPLETE!',
+                style: TextStyle(
+                  color: AppColors.headingDark,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 14),
               SizedBox(
                 width: 220,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TangibleButton(
                       text: state.isRandomMode ? 'Play Again' : 'Next Level',
-                      height: 50,
+                      height: 48,
                       onPressed: () {
-                        Navigator.pop(context);
                         if (state.isRandomMode) {
                           ref
                               .read(gameViewModelProvider.notifier)
                               .loadRandomLevel(
-                                state.randomDifficulty ?? 'Easy',
+                                state.randomDifficulty ?? widget.randomDifficulty,
+                                gridSize: widget.gridSize,
                               );
                         } else {
                           Navigator.pushReplacement(
@@ -1382,21 +1362,11 @@ class _GameViewState extends ConsumerState<GameView>
                         }
                       },
                     ),
-                    const SizedBox(height: 14),
-                    TangibleButton(
-                      text: 'Home',
-                      isSecondary: true,
-                      height: 50,
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.pop(context);
-                      },
-                    ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     TangibleButton(
                       text: 'Buy me a coffee',
                       isSecondary: true,
-                      height: 50,
+                      height: 48,
                       onPressed: () => launchUrl(
                         Uri.parse('https://ko-fi.com/sidhant947'),
                         mode: LaunchMode.externalApplication,

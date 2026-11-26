@@ -30,6 +30,7 @@ class GameViewModelState {
   final Set<int> clearingRows;
   final Set<int> clearingCols;
   final bool isAnimating;
+  final bool canUndo;
 
   GameViewModelState({
     this.level,
@@ -53,6 +54,7 @@ class GameViewModelState {
     this.clearingCols = const {},
     this.isAnimating = false,
     this.highestScore = 0,
+    this.canUndo = false,
   });
 
   GameViewModelState copyWith({
@@ -77,6 +79,7 @@ class GameViewModelState {
     Set<int>? clearingCols,
     bool? isAnimating,
     int? highestScore,
+    bool? canUndo,
   }) {
     return GameViewModelState(
       level: level ?? this.level,
@@ -100,6 +103,7 @@ class GameViewModelState {
       clearingCols: clearingCols ?? this.clearingCols,
       isAnimating: isAnimating ?? this.isAnimating,
       highestScore: highestScore ?? this.highestScore,
+      canUndo: canUndo ?? this.canUndo,
     );
   }
 }
@@ -112,6 +116,10 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
   final ProgressRepository progressRepository;
   final LevelGenerator levelGenerator;
+
+  GameViewModelState? _previousState;
+  Timer? _clearTimer;
+  Timer? _animTimer;
 
   Future<void> loadLevel(int levelNumber) async {
     state = state.copyWith(isLoading: true);
@@ -159,6 +167,10 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     final pieces = _generateSolvable3Pieces(board);
     final colors = _generate3Colors();
 
+    _previousState = null;
+    _clearTimer?.cancel();
+    _animTimer?.cancel();
+
     state = GameViewModelState(
       level: level,
       board: board,
@@ -175,6 +187,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       isRandomMode: isRandom,
       randomDifficulty: difficulty,
       highestScore: highestScore,
+      canUndo: false,
     );
   }
 
@@ -220,6 +233,8 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     if (!BlockBlastRules.canPlacePiece(state.board, piece, startRow, startCol)) {
       return false;
     }
+
+    _previousState = state;
 
     final newBoard = List.generate(
       state.board.length,
@@ -281,9 +296,10 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         clearingRows: completedRows.toSet(),
         clearingCols: completedCols.toSet(),
         isAnimating: true,
+        canUndo: true,
       );
 
-      Timer(const Duration(milliseconds: 380), () {
+      _clearTimer = Timer(const Duration(milliseconds: 380), () {
         final clearedBoard = List.generate(
           newBoard.length,
           (r) => List<int>.from(newBoard[r]),
@@ -363,6 +379,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
           clearingRows: const {},
           clearingCols: const {},
           isAnimating: false,
+          canUndo: true,
         );
       });
     } else {
@@ -401,14 +418,39 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         lastClearedLines: clearedLines,
         lastMoveScore: moveScore,
         isAnimating: true,
+        canUndo: true,
       );
 
-      Timer(const Duration(milliseconds: 150), () {
+      _animTimer = Timer(const Duration(milliseconds: 150), () {
         state = state.copyWith(isAnimating: false);
       });
     }
 
     return true;
+  }
+
+  void undoLastMove() {
+    if (_previousState == null) return;
+    _clearTimer?.cancel();
+    _animTimer?.cancel();
+    state = _previousState!.copyWith(
+      isAnimating: false,
+      clearingRows: const {},
+      clearingCols: const {},
+      lastClearedLines: 0,
+      lastMoveScore: 0,
+      isGameOver: false,
+      isComplete: false,
+      canUndo: false,
+    );
+    _previousState = null;
+  }
+
+  @override
+  void dispose() {
+    _clearTimer?.cancel();
+    _animTimer?.cancel();
+    super.dispose();
   }
 
   void resetLevel() {
